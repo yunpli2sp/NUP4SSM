@@ -3,7 +3,8 @@
 This repository contains code to reproduce several experiments in the paper:
 Y.-P Li, H.-A. Loeliger, “Backward Filtering Forward Deciding in Linear Non-Gaussian State Space Models,” (to be appeared) in 2024 International Conference on Artificial Intelligence and Statistics (AISTATS 2024), May 2024.
 
-The library is implemented with C, and interface is provided for python users.
+The library is implemented with C, and interface is provided for python users. You can use BFFD
+to compute MAP estimation for state space models with non-Gaussian or linearly constrained inputs.
 
 ## Dependence
 

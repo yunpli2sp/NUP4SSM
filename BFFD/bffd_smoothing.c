@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2024 Yun-Peng Li, Hans-Andrea Loeliger.
  *
- * Date: 2024-2-13
+ * Date: 2025-1-15
  * Author: Yunpeng Li (yunpli@isi.ee.ethz.ch)
  * Brief: Performing MAP estimation for linear non-Gaussian state space models using
  *        BFFD (backward filtering forward deciding) algorithm. The density of non-Gaussian
@@ -28,7 +28,6 @@
 #include <Accelerate/Accelerate.h> // MacOs
 //#include <cblas.h> // Linux
 #include "bffd_smoothing.h"
-#include "routines.h"
 
 
 int solve_equations(int n,double * A, double * b){
@@ -92,50 +91,44 @@ choice                inputs' distribution
 */
 void NUP_unknown_parameters(int choice, double u, double beta, double *NUP_parameters, double *msgf_m_U, double *msgf_V_U)
 {
-  if(choice==1){
+  if(choice==0){
         laplace_unknown_parameters(u, beta, msgf_m_U, msgf_V_U);
-      }else if(choice==2){
+      }else if(choice==1){
         huber_unknown_parameters(u, beta, NUP_parameters[0],msgf_m_U, msgf_V_U);
-      }else if(choice==3){
+      }else if(choice==2){
         hinge_unknown_parameters(u, beta, NUP_parameters[0], msgf_m_U, msgf_V_U);
-      }else if(choice==4){
+      }else if(choice==3){
         vapnik_unknown_parameters(u, beta, NUP_parameters[0], NUP_parameters[1], msgf_m_U, msgf_V_U);
-      }else if(choice==5){
-        plainNUV_unknown_parameters(u, msgf_m_U, msgf_V_U);
       }else{
-        return;
+        plainNUV_unknown_parameters(u, msgf_m_U, msgf_V_U);
       }
 }
 double NUP_decisions(int choice, double msgb_m_U, double msgb_V_U, double beta, double *NUP_parameters)
 {
-  if(choice==1){
+  if(choice==0){
     return laplace_decision(msgb_m_U, msgb_V_U, beta);
-  }else if(choice==2){
+  }else if(choice==1){
     return huber_decision(msgb_m_U, msgb_V_U, beta, NUP_parameters[0]);
-  }else if(choice==3){
+  }else if(choice==2){
     return hinge_decision(msgb_m_U, msgb_V_U, beta, NUP_parameters[0]);
-  }else if(choice==4){
+  }else if(choice==3){
     return vapnik_decision(msgb_m_U, msgb_V_U, beta, NUP_parameters[0], NUP_parameters[1]);
-  }else if(choice==5){
-    return plainNUV_decision(msgb_m_U, msgb_V_U);
   }else{
-    return msgb_m_U/(1.+beta*msgb_V_U);
+    return plainNUV_decision(msgb_m_U, msgb_V_U);
   }
 }
 double NUP_regularizations(int choice, double m_U, double beta, double *NUP_parameters)
 {
-  if(choice==1){
+  if(choice==0){
     return laplace_regularization(m_U, beta);
-  }else if(choice==2){
+  }else if(choice==1){
     return huber_regularization(m_U, beta, NUP_parameters[0]);
-  }else if(choice==3){
+  }else if(choice==2){
     return hinge_regularization(m_U, beta, NUP_parameters[0]);
-  }else if(choice==4){
+  }else if(choice==3){
     return vapnik_regularization(m_U, beta, NUP_parameters[0], NUP_parameters[1]);
-  }else if(choice==5){
-    return plainNUV_regularization(m_U);
   }else{
-    return (beta/2.)*m_U*m_U;
+    return plainNUV_regularization(m_U);
   }
 }
 
@@ -204,16 +197,16 @@ double NUP_regularizations(int choice, double m_U, double beta, double *NUP_para
  * y_obs: double array of size N*K
  *        the values of output observations.
  * 
- * msgf_m_X1: double array of size M
- *             the (forward) mean of initial state X_{1}, default is 
+ * msgf_Xi_X1: double array of size M
+ *             the (forward) precision mean of initial state X_{1}, default is 
  *             zero vector.
  *  
  * msgf_W_X1: double array of size M*M
  *            the (forward) precision matrix of initial state X_{1}, default is
  *            zero matrix.
  * 
- * msgf_m_Xf: double array of size M
- *             the (backward) mean of final state X_{N+1}, default is 
+ * msgf_Xi_Xf: double array of size M
+ *             the (backward) precision mean of final state X_{N+1}, default is 
  *             zero vector.
  * 
  * msgf_W_Xf: double array of size M*M
@@ -251,15 +244,16 @@ double NUP_regularizations(int choice, double m_U, double beta, double *NUP_para
  */
 
 int bffd_input_estimation(int choice, double *NUP_parameters, double beta, int N, int M, int L, int K, int max_valid_index,double *A, double *B, 
-                          double *C, double *y_obs,double *msgf_m_X1, double *msgf_W_X1, double *msgb_m_Xf, double *msgb_W_Xf,double *msgb_W_Yn,
+                          double *C, double *y_obs,double *msgf_Xi_X1, double *msgf_W_X1, double *msgb_Xi_Xf, double *msgb_W_Xf,double *msgb_W_Yn,
                           int maxit, double obj_tol,double eps, double *m_X1, double *m_Us, double *m_Ys, double *objs)
 {   
     int n = 0;
     int l = 0;   
     int it = 0;
     int i = 0;
+    int max_index = 0;
     int info = 0;
-    int max_index = N;
+
 
     double msgb_m_U_element = 0.0;
     double msgb_V_U_element = 0.0;
@@ -297,23 +291,19 @@ int bffd_input_estimation(int choice, double *NUP_parameters, double beta, int N
     double* precomputed_matrix; 
 
     double* tmp_vec;
-    double* tmp_vec_Y;
-
-    double *msgf_Xi_X1;
-    double *msgb_Xi_Xf;
 
   
     
 
-    if(choice==1){
+    if(choice==0){
       printf("NUP prior : Laplace/L1 \n");
-    }else if(choice==2){
+    }else if(choice==1){
       printf("NUP prior : Huber loss \n");
-    }else if(choice==3){
+    }else if(choice==2){
       printf("NUP prior : hinge loss \n");
-    }else if(choice==4){
+    }else if(choice==3){
       printf("NUP prior : Vapnik loss \n");
-    }else if(choice==5){
+    }else if(choice==4){
       printf("NUP prior : plain NUV \n");
     }else{
       printf("Error: illegal value of 'choice' \n");
@@ -375,30 +365,18 @@ int bffd_input_estimation(int choice, double *NUP_parameters, double beta, int N
     tmp_vec = (double *) malloc(M*sizeof(double));
     memset(tmp_vec,0,M*sizeof(double));
 
-    tmp_vec_Y = (double *) malloc(K*sizeof(double));
-    memset(tmp_vec_Y,0,K*sizeof(double));
-
-    msgf_Xi_X1 = (double *) malloc(M*sizeof(double));
-    memset(msgf_Xi_X1,0,M*sizeof(double));
-
-
-    msgb_Xi_Xf = (double *) malloc(M*sizeof(double));
-    memset(msgb_Xi_Xf,0,M*sizeof(double));
-
 
     /*
     initialization
     */
 
-    cblas_dgemv(CblasRowMajor,CblasNoTrans,M,M,1.,msgf_W_X1,M,msgf_m_X1,1,0,msgf_Xi_X1,1);
-    cblas_dgemv(CblasRowMajor,CblasNoTrans,M,M,1.,msgb_W_Xf,M,msgb_m_Xf,1,0,msgb_Xi_Xf,1);
     
     for(n=0;n<N;n++){
       cblas_dgemv(CblasRowMajor,CblasNoTrans,K,K,1.,msgb_W_Yn,K,y_obs+n*K,1,0,tmp_vec,1);
       cblas_dgemv(CblasRowMajor,CblasTrans,K,M,1.0,C,M,tmp_vec,1,0.,precomputed_vectors+n*M,1);
       for(l=0;l<L;l++){
         msgf_m_Us[n*L+l] = 0.0;
-        msgf_V_Us[n*L+l] = 1.0/beta;
+        msgf_V_Us[n*L+l] = 1.0;
       }
     }
     
@@ -426,7 +404,7 @@ int bffd_input_estimation(int choice, double *NUP_parameters, double beta, int N
     
     
 
-    while(it<(maxit-1)){
+    while(it<maxit){
 
     obj_ls = 0.;
     obj_plt = 0.;
@@ -470,16 +448,6 @@ int bffd_input_estimation(int choice, double *NUP_parameters, double beta, int N
     info = initial_state(M, msgf_Xi_X1, msgf_W_X1, msgb_Xi_Xs+L*M, msgb_W_Xs+L*M*M,m_X1);
     cblas_dcopy(M,m_X1,1,m_X,1);
 
-   
-    cblas_daxpy(M,-1.,msgf_m_X1,1,m_X,1);
-    cblas_dgemv(CblasRowMajor,CblasNoTrans,M,M,1.,msgf_W_X1,M,m_X,1,0,tmp_vec,1);
-    //obj_ls = obj_ls + cblas_ddot(M,m_X,1,tmp_vec,1);
-    objs[it+1] = evaluate_least_squares(M, m_X1, msgf_m_X1, msgf_W_X1);
-
-    cblas_dcopy(M,m_X1,1,m_X,1);
-
-    
-
 
     // forward deciding
     for(n=0;n<N;n++){
@@ -488,9 +456,8 @@ int bffd_input_estimation(int choice, double *NUP_parameters, double beta, int N
       cblas_dgemv(CblasRowMajor,CblasNoTrans,K,M,1.,C,M,m_X,1,0,m_Y,1);
       cblas_dcopy(K,m_Y,1,m_Ys+n*K,1);
       cblas_daxpy(K,-1.,y_obs+n*K,1,m_Y,1);
-      cblas_dgemv(CblasRowMajor,CblasNoTrans,K,K,1.,msgb_W_Yn,K,m_Y,1,0,tmp_vec_Y,1);
-      //obj_ls = obj_ls + cblas_ddot(K,m_Y,1,tmp_vec_Y,1);
-      objs[it+1] = objs[it+1] + evaluate_least_squares(K, m_Ys+n*K, y_obs+n*K, msgb_W_Yn);
+      cblas_dgemv(CblasRowMajor,CblasNoTrans,K,K,1.,msgb_W_Yn,K,m_Y,1,0,tmp_vec,1);
+      obj_ls = obj_ls + cblas_ddot(K,m_Y,1,tmp_vec,1);
       
       cblas_dgemv(CblasRowMajor,CblasNoTrans,M,M,1.,A,M,m_X,1,0,tmp_vec,1);
       cblas_dcopy(M,tmp_vec,1,m_X,1);
@@ -502,24 +469,18 @@ int bffd_input_estimation(int choice, double *NUP_parameters, double beta, int N
 
         cblas_dgemv(CblasRowMajor,CblasNoTrans,M,M,1.,msgb_W_Xs+(n+1)*(L+1)*M*M + l*M*M,M,b,1,0,tmp_vec,1);
         //msgb_V_U_element = 1.0/cblas_ddot(M,b,1,tmp_vec,1);
+        msgb_V_U_element = 1.0/(eps + cblas_ddot(M,b,1,tmp_vec,1));  // if the results are overflow, using this for numerical stability.
 
-
-
+        tmp_val = cblas_ddot(M,b,1,msgb_Xi_Xs+(n+1)*(L+1)*M+l*M,1) - cblas_ddot(M,tmp_vec,1,m_X,1);
+        msgb_m_U_element = msgb_V_U_element*tmp_val;
 
         if(n<max_index){
-           msgb_V_U_element = 1.0/(cblas_ddot(M,b,1,tmp_vec,1));  // if the results are overflow, using this for numerical stability.
-           tmp_val = cblas_ddot(M,b,1,msgb_Xi_Xs+(n+1)*(L+1)*M+l*M,1) - cblas_ddot(M,tmp_vec,1,m_X,1);
-           msgb_m_U_element = msgb_V_U_element*tmp_val;
-           m_Us[n*L+l-1] =  NUP_decisions(choice, msgb_m_U_element, msgb_V_U_element , beta, NUP_parameters);
-           NUP_unknown_parameters(choice, m_Us[n*L+l-1], beta, NUP_parameters, msgf_m_Us+n*L+l-1, msgf_V_Us+n*L+l-1);
+          m_Us[n*L+l-1] =  NUP_decisions(choice, msgb_m_U_element, msgb_V_U_element , beta, NUP_parameters);
+          NUP_unknown_parameters(choice, m_Us[n*L+l-1], beta, NUP_parameters, msgf_m_Us+n*L+l-1, msgf_V_Us+n*L+l-1);
+          obj_plt = obj_plt + NUP_regularizations(choice, m_Us[n*L+l-1], beta, NUP_parameters);
         }else{
-          //m_Us[n*L+l-1] = map_estimation(msgf_m_Us[n*L+l-1],msgf_V_Us[n*L+l-1],msgb_m_U_element,msgb_V_U_element);
-          m_Us[n*L+l-1] = 0.0;
+          m_Us[n*L+l-1] = map_estimation(msgf_m_Us[n*L+l-1],msgf_V_Us[n*L+l-1],msgb_m_U_element,msgb_V_U_element);
         }
-        //obj_plt = obj_plt + NUP_regularizations(choice, m_Us[n*L+l-1], beta, NUP_parameters);
-        objs[it+1] = objs[it+1] + NUP_regularizations(choice, m_Us[n*L+l-1], beta, NUP_parameters);
-
-
 
 
         cblas_daxpy(M,m_Us[n*L+l-1],b,1,m_X,1);
@@ -528,12 +489,8 @@ int bffd_input_estimation(int choice, double *NUP_parameters, double beta, int N
       }
     }
 
-    cblas_daxpy(M,-1.,msgb_m_Xf,1,m_X,1);
-    cblas_dgemv(CblasRowMajor,CblasNoTrans,M,M,1.,msgb_W_Xf,M,m_X,1,0,tmp_vec,1);
-    //obj_ls = obj_ls + cblas_ddot(M,m_X,1,tmp_vec,1);
-
     
-    //objs[it] = 0.5*obj_ls + obj_plt;
+    objs[it] = 0.5*obj_ls + obj_plt;
 
 
 
@@ -580,15 +537,12 @@ int bffd_input_estimation(int choice, double *NUP_parameters, double beta, int N
     free(precomputed_matrix); 
 
     free(tmp_vec);
-    free(tmp_vec_Y);
-    free(msgf_Xi_X1);
-    free(msgb_Xi_Xf);
 
 
 
 
 
-    return it;
+    return it-1;
 }
 
 /**
@@ -882,9 +836,9 @@ double *Q, double *Qf, double * x1, double *xf,int maxit, double obj_tol, double
         m_Us[n*L+l-1] =  NUP_decisions(choice, msgb_m_U_element, msgb_V_U_element , betas[n*L+l-1], NUP_parameters);
         
         // adjust the scale parameters for constraint satisfication when necessary.
-        if(choice==3){
+        if(choice==2){
           beta_new = hinge_adaptive_parameter(m_Us[n*L+l-1], msgb_m_U_element, msgb_V_U_element, NUP_parameters[0]);
-        }else if(choice==4){
+        }else if(choice==3){
           beta_new = vapnik_adaptive_parameter(m_Us[n*L+l-1], msgb_m_U_element, msgb_V_U_element, NUP_parameters[0],NUP_parameters[1]);
         }
 

@@ -2,7 +2,7 @@
 
 This repository contains code to reproduce experiment in the paper:
 Yun-Peng Li, H.-A. Loeliger, “Dual NUP Representations and Min-Maximization in Factor Graphs,” 
-(to be appeared) in 2005 IEEE International Symposium on Information Theory (ISIT 2025),
+(to be appeared) in 2025 IEEE International Symposium on Information Theory (ISIT 2025),
 June 2025. 
 
 The library is implemented with C, and interface is provided for python users. You can use FFBDD

@@ -12,7 +12,7 @@
  *        function 'ffbdd_input_estimation' is designed for general MAP estimation in 
  *        non-Gaussian SSM. 
  * Cite: Yun-Peng Li, H.-A. Loeliger, “Dual NUP Representations and Min-Maximization in Factor Graphs,” 
- *       (to be appeared) in 2005 IEEE International Symposium on Information Theory (ISIT 2025),
+ *       (to be appeared) in 2025 IEEE International Symposium on Information Theory (ISIT 2025),
  *        June 2025.  
  */
 
